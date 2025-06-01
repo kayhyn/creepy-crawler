@@ -1,0 +1,13 @@
+[project]
+name = "creepy-crawler"
+version = "0.1.0"
+description = "Generate sitemap graphs, identify unreachable content, bust linkrot, and more!"
+authors = [{ name="Kay Hynes", email="kayhyn@pdx.edu" }]
+dependencies = [
+    "docopt",
+    "requests",
+    "paramiko",
+]
+
+[project.scripts]
+creepy-crawler = "creepycrawler.cli:main"
