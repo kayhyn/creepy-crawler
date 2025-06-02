@@ -1,12 +1,23 @@
-"""creepy-crawler - Create sitemaps, bust linkrot, find unlinked files, and more!
+"""
+creepy-crawler - Create sitemaps, bust linkrot, find unlinked files, and more!
+
+                                        \\_______/
+                                    `.,-'\\_____/`-.,'
+                                    /`..'\\ _ /`.,'\\
+                                    /  /`.,' `.,'\\  \\
+                                    /__/__/     \\__\\__\\__
+                                    \\  \\  \\     /  /  /
+                                    \\  \\,'`._,'`./  /
+                                    \\,'`./___\\,'`./
+                                    ,'`-./_____\\,-'`.
+                                        /       \\
 
 Usage:
-  PROGRAM crawl [options] <website> [<webroot>] 
-    [--working-dir <directory>] 
-  PROGRAM report [options] <webroot> --link-graph <file> 
-    [--working-dir <directory>]
-  PROGRAM (-h | --help)
-  PROGRAM (-v | --version)
+  creepy-crawler crawl [options] <website> [<webroot>] [--working-dir <directory>] 
+  creepy-crawler report [options] <webroot> --link-graph <file> 
+                                                    [--working-dir <directory>]
+  creepy-crawler (-h | --help)
+  creepy-crawler (-v | --version)
 
 Commands:
   crawl                         Crawl a live website and generate a link graph.
@@ -58,14 +69,12 @@ from creepycrawler import Crawler, FileTree, LinkGraph, Reporting
 from .helpers import *
 
 # ensure the actual executable path is displayed in help message
-USAGE = __doc__.replace("PROGRAM", sys.argv[0])
-
 class CLI:
     __valid_formats = {'json','xml', 'md'}
     __valid_report_types = {'deadlinks', 'unreachable', 'combined', 'all'}
     def __init__(self):
         # load config settings from command line arguments, using docopt for initial parsing
-        self.args = docopt(USAGE, version='0.1')
+        self.args = docopt(__doc__, version='0.1')
 
         self.crawl_mode = self.args['crawl']
         self.report_mode = self.args['report']

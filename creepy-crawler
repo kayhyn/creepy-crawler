@@ -2,7 +2,6 @@
 # exists to allow the user to run without installing
 
 from creepycrawler import CLI
-
 if __name__ == '__main__':
     cli = CLI()
     cli.run()

@@ -113,15 +113,15 @@ class LinkGraph:
         if fmt == "json":
             graph_data = json.loads(data)
             graph = cls()
-            # First pass: create all nodes
+            # create the nodes
             for url, node_dict in graph_data["nodes"].items():
                 graph._crawled[url] = Node.from_dict(node_dict)
 
-            # Second pass: resolve links
+            # resolve the links to nodes
             for node in graph._crawled.values():
                 node.links = [graph._crawled[target_url] for target_url in getattr(node, "_link_urls", [])]
 
-            # Set root
+            # set root
             root_url = graph_data.get("root")
             if root_url:
                 graph.root = graph._crawled.get(root_url)
@@ -133,8 +133,9 @@ class LinkGraph:
     def load(cls, data):
         return cls.deserialize("".join(data))
 
-    # Turn our site map format into standards compliant XML that you can host!! Coming soon, miracy considerations.
+    # turn our site map format into standards compliant XML that you can host - why not, it's basically free
     def generate_sitemap(self):
+        # we will eventually be using this xml plugin to permit XML reports as well but for now this is its job
         urlset = Element("urlset", xmlns="http://www.sitemaps.org/schemas/sitemap/0.9")
 
         for node in self._crawled.values():
@@ -149,13 +150,14 @@ class LinkGraph:
             if node.last_modified:
                 lastmod = SubElement(url_elem, "lastmod")
                 try:
-                    # Attempt to parse and reformat timestamp if valid
+                    # attempt to parse and reformat timestamp if valid
                     dt = datetime.datetime.fromisoformat(node.last_modified)
                     lastmod.text = dt.date().isoformat()
-                except Exception:
-                    lastmod.text = node.last_modified  # fallback: raw string
+                except Exception:  
+                    # fallback: raw string
+                    lastmod.text = node.last_modified
 
-        # Prettify
+        # prettify it a little bit
         raw_xml = tostring(urlset, encoding="utf-8")
         dom = xml.dom.minidom.parseString(raw_xml)
         return dom.toprettyxml(indent="  ")

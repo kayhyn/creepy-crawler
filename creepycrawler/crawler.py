@@ -22,11 +22,12 @@ class Crawler:
     def run(self):
         while self.queue:
             current_url = self.queue.pop(0)
-            self.queued_keys.discard(canon_key)
 
             canon_key = self._stupid_dedup_key(current_url)
             if canon_key in self.visited_keys:
                 continue
+            # no longer queued - this babys moving to the visited list
+            self.queued_keys.discard(canon_key)
             self.visited_keys.add(canon_key)
 
             Logger.print(2, f"Visiting {current_url}")
@@ -91,6 +92,8 @@ class Crawler:
         soup = BeautifulSoup(html, 'html.parser')
         title = soup.title.string.strip() if soup.title and soup.title.string else ''
         links = set()
+        # loop through all the tags that have links, and the corresponding attribute that holds the link.
+        # grab the links for all those.
         for tag, attr in [('a', 'href'), ('link', 'href'), ('script', 'src'),
                           ('img', 'src'), ('iframe', 'src'), ('source', 'src')]:
             for el in soup.find_all(tag):
