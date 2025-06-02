@@ -9,5 +9,4 @@ and then run
 
 to see some options.
 
-you might just want to try `creepy-crawler crawl <website>` since unless 
-you have access to a live server the `report` feature will not be of much use.
+`creepy-crawler crawl <website>` will create a site map
