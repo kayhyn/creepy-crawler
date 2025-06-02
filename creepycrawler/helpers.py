@@ -22,15 +22,15 @@ class RWTool:
         # if writing, create parent directory if it doesn't yet exist
         if mode=='w': 
             os.makedirs(p.parent, exist_ok=True)
-            Logger.print(2,f"{p.parent} created")
+            Logger.print(2, f"{p.parent} created")
 
         with open(p, mode) as f:
         # hand file back to caller
             yield f
             if mode=='r':
-                Logger.print(2,f"{p} read")
+                Logger.print(2, f"{p} read")
             else:
-                Logger.print(1,f"{p} written")
+                Logger.print(1, f"{p} written")
 
 class Logger:
     __verbosity_level = 2
@@ -80,6 +80,6 @@ def valid_path(p_str, dir=True, mode="rw", fatal=False):
             assert os.access(p, os.R_OK) or not require_read, 'is not readable!'
         return p
     except AssertionError as e:
-        if fatal: eprint(f"Error: {p} {e}")
+        if fatal: Logger.eprint(f"Error: {p} {e}")
         if not fatal: return None
         sys.exit(1)

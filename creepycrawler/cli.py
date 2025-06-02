@@ -48,9 +48,11 @@ Options:
 """
 from docopt import docopt
 import sys
+import signal
 import re
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 from creepycrawler import Crawler, FileTree, LinkGraph, Reporting
 # make helper functions available as needed
 from .helpers import *
@@ -68,6 +70,7 @@ class CLI:
         self.crawl_mode = self.args['crawl']
         self.report_mode = self.args['report']
         self.website = self.args['<website>']
+        self.domain = urlparse(self.website).netloc
         self.quiet = self.args['--quiet']
         self.silent = self.args['--silent']
         self.archive_dead_links = self.args['--archive-dead-links']
@@ -78,7 +81,7 @@ class CLI:
         Logger.set(silent=self.args['--silent'], quiet=self.args['--quiet'])
         
         # validate formats and report types
-        serial_formats = self.args['--format']
+        serial_formats = self.args['--format'] or "json"
         self.serial_formats = [sf.strip() for sf in serial_formats.split(',')]
         for fmt in self.serial_formats:
             if fmt not in self.__valid_formats:
@@ -97,38 +100,40 @@ class CLI:
                 sys.exit(1)
 
         # validate working directory and link graph file path
-        wd_rough = Path(self.args['--working-dir'] or '.')
-        lg_rough = Path(self.args['--link-graph'] or f"{self.website}_graph.xml") 
+        wd_rough = (Path(Path.cwd() / self.args['--working-dir']) if self.args["--working-dir"] else Path(Path.cwd() / f"./{self.domain}"))
+        self.working_dir = wd_rough
+        lg_rough = Path(self.args['--link-graph'] or wd_rough / f"./{self.domain}_graph.xml") 
         # in crawl mode we need to know two things:
         # 1. can we write to the link graph file?
         # 2. if there are reports, can we write to those?
         # TODO: add continue functionality
         if self.crawl_mode:
             # check if we can write to the absolute path of the link graph file. if not, we will need to use the working directory.
-            lgf = valid_path(lg_rough, dir=False, mode="w")
+            lgf = valid_path(lg_rough, dir=False, mode="r")
             # if we need to use the working directory, check that we can do so (or create it)
             if self.report_types or self.generate_sitemap or not lgf:
                 wd = valid_path(wd_rough, dir=True, mode="w", fatal=True)
-                print(wd)
-                # get absolute path of wd
-                self.working_dir = wd.resolve()
             # if we didn't find a valid lgf to write to before, try within the wd
             self.link_graph_file = (lgf or valid_path(wd / lg_rough, dir=False, mode="w", fatal=True)).resolve()
         else:
             # in report mode, we need to READ the lgf and write to the working directory
             lgf = valid_path(lg_rough, dir=False, mode="r")
             # if the lgf does not exist, the working directory must be readable to look for it
+
             wd = valid_path(wd_rough, dir=True, mode=("rw" if lgf else "w"), fatal=True)
-            self.working_dir = wd.resolve()
+            self.working_dir = wd
             # now, ensure we have a valid lgf to read - either from before or inside the wd
-            self.link_graph_file = (lgf or valid_path(wd / lg_rough, dir=False, mode="r") or valid_path(wd / f"{self.website}_graph.md", dir=False, mode="r") or valid_path(wd / f"{self.website}_graph.json", dir=False, mode="r", fatal=True)).resolve()
+            self.link_graph_file = (lgf or valid_path(wd / lg_rough, dir=False, mode="r") or valid_path(wd / f"{self.domain}_graph.md", dir=False, mode="r") or valid_path(wd / f"{self.domain}_graph.json", dir=False, mode="r", fatal=True)).resolve()
+        
+        Logger.print(2,f"Set working directory to {self.working_dir}")
+        # finally, tell the file helper where our WD is
+        RWTool.cwd(self.working_dir)
 
         
 
     def run(self):
         webroot = self.args['<webroot>']
         if self.args['crawl']:
-
             Logger.print(1,f"Starting crawl on: {self.website}")
             crawler = Crawler(
                 self.website,
@@ -144,9 +149,8 @@ class CLI:
             for fmt in self.serial_formats:
                 Logger.print(2,f"Serializing to to {fmt}...")
                 serialized = link_graph.serialize(fmt)
-                with RWTool.open(self.link_graph_file.with_suffix(f".{fmt}")) as f:
+                with RWTool.open(self.link_graph_file.with_suffix(f".{fmt}"),'w') as f:
                     f.write(serialized)
-            link_graph.save(self.link_graph_file)
 
             self._process_graph(link_graph, webroot)
 
@@ -157,29 +161,45 @@ class CLI:
                 sys.exit(1)
 
             Logger.print(2,f"Loading link graph from: {self.link_graph_file}")
-            link_graph = LinkGraph.load(self.link_graph_file)
+            with RWTool.open(self.link_graph_file, 'r') as f:
+                lg_str = f.readlines()
+
+            link_graph = LinkGraph.load(lg_str)
+
+            # now we've loaded the graph, let's process it
+            self._process_graph(link_graph, webroot)
 
         else:
             Logger.eprint("Invalid command. Use --help to see available options.")
             sys.exit(1)
+        
+        Logger.print(1, "All done!")
 
-        self._process_graph(link_graph, webroot)
 
     def _process_graph(self, link_graph, webroot):
-        # ok, we're done crawling! now, what do we want to do?
+
         if self.generate_sitemap:
-            Logger.print(2,"Generating site map")
-            link_graph.generate_sitemap(self.working_dir)
-
-        if webroot:
-            Logger.print(2,"Beginning comparison to webroot...")
-            file_tree = FileTree(webroot, ignore=self.ignore_regex)
-            link_graph.compare_with_filetree(file_tree)
-
+            Logger.print(1,"Generating site map!")
+            with RWTool.open("sitemap.xml", "w") as f:
+                f.write(link_graph.generate_sitemap())
         
+        # store directory tree here to be compared in the report generator
+        file_tree = None
+        if webroot:
+            Logger.print(1,"Beginning index of webroot...")
+            # initialize the file tree and build it
+            file_tree = FileTree(webroot, ignore=self.ignore_regex)
+            file_tree.Build()
+            Logger.print(1,"Done!")
                 
         for rtype in self.report_types:
-            Logger.print(2,f"Generating {rtype} report...")
+            Logger.print(1,f"Generating {rtype} report...")
             for fmt in self.serial_formats:
-                Reporting.generate(link_graph, rtype, fmt, working_dir=self.working_dir)
+                r = Reporting.generate(link_graph, file_tree, rtype, fmt)
+                with RWTool.open(f"{rtype}.{fmt}", "w") as f:
+                    f.write(r)
 
+def signal_handler(sig, frame):
+    Logger.eprint("CTRL-C detected; quitting.")
+    sys.exit(1);
+signal.signal(signal.SIGINT, signal_handler)

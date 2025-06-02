@@ -1,2 +1,3 @@
 class Reporting:
-    foo = 0
+    def generate(link_graph, frtype, file_tree=None, fmt="json"):
+        ...
