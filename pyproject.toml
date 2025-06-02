@@ -6,7 +6,9 @@ authors = [{ name="Kay Hynes", email="kayhyn@pdx.edu" }]
 dependencies = [
     "docopt",
     "requests",
+    "bs4",
     "paramiko",
+
 ]
 
 [project.scripts]

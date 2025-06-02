@@ -8,4 +8,4 @@ class Crawler:
         print(f"Crawling {self.url}...")
 
     def get_links(self):
-       
+        return 1
