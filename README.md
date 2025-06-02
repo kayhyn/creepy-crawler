@@ -9,5 +9,5 @@ and then run
 
 to see some options.
 
-generally speaking you might just want to try `creepy-crawler crawl <website>`; unless 
+you might just want to try `creepy-crawler crawl <website>` since unless 
 you have access to a live server the `report` feature will not be of much use.
