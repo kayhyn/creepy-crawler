@@ -14,7 +14,8 @@ class Node:
         self.broken = broken
         self.external = external
         self.file_path = file_path
-        self.links = []  # list of target Node objects
+        # list of target Node objects (i.e. any resources loaded by the page)
+        self.links = []
 
     def add_target(self, target_node):
         if all(target.url != target_node.url for target in self.links):
@@ -57,8 +58,12 @@ class LinkGraph:
         self.root = None
 
         # store all nodes in dictionary (hashmap)
-        # O-1 access :D
+        # O1 access :D
         self._crawled = {}
+    
+    # provide access to data from the nodes - TODO make this more efficient
+    def view(self,feature):
+        return [ node.to_dict()[feature] for node in self._crawled.values() ]
 
     # determine if a link has yet been visited 
     def visited(self, url):
@@ -72,8 +77,7 @@ class LinkGraph:
             # crucially, if the node does exist make sure all of its items are updated with new information
             node = self._crawled[url]
             for k, v in kwargs.items():
-                if getattr(node, k, None) is None and v is not None:
-                    setattr(node, k, v)
+                setattr(node, k, v)
 
         return self._crawled[url]
 

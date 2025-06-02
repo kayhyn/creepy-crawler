@@ -1,16 +1,10 @@
+import re
 import requests
 from bs4 import BeautifulSoup
-import re
-from urllib.parse import urljoin, urlparse, urldefrag
-from creepycrawler.linkgraph import LinkGraph
-import sys
-from .helpers import Logger
-import requests
-from bs4 import BeautifulSoup
-import re
 from urllib.parse import urljoin, urlparse, urldefrag
 from creepycrawler.linkgraph import LinkGraph
 from .helpers import Logger
+
 
 class Crawler:
     def __init__(self, base_url, ignore=None, archive_dead=False):
@@ -22,18 +16,24 @@ class Crawler:
         self.archive_dead = archive_dead
         self.graph = LinkGraph()
         self.graph.set_root(self.base_url)
+        self.queued_keys = set()
+
 
     def run(self):
         while self.queue:
             current_url = self.queue.pop(0)
-            canon_key = self._unique_key(current_url)
+            self.queued_keys.discard(canon_key)
+
+            canon_key = self._stupid_dedup_key(current_url)
             if canon_key in self.visited_keys:
                 continue
             self.visited_keys.add(canon_key)
 
             Logger.print(2, f"Visiting {current_url}")
             try:
-                response = self._fetch(current_url)
+                response = requests.get(current_url, timeout=10, headers={'User-Agent': 'creepy-crawler'})
+                # follow redirects, and store the *correct* URL
+                current_url = response.url
                 content_type = response.headers.get('Content-Type', '').split(';')[0]
                 file_path = urlparse(response.url).path or "/"
                 Logger.print(2,f"Downloaded {file_path}!")
@@ -50,7 +50,6 @@ class Crawler:
                     external=False,
                     file_path=file_path
                 )
-                print(node.to_dict())
 
                 # if it's an html document, pick it apart for links we can poach
                 if 'text/html' in content_type:
@@ -60,6 +59,7 @@ class Crawler:
                 else:
                     links = set()
 
+                Logger.print(2,node.to_dict())
             except requests.exceptions.RequestException as e:
                 Logger.print(1, f"Request failed for {current_url}: {e}")
                 node = self.graph.get_or_create_node(
@@ -71,24 +71,23 @@ class Crawler:
                 links = set()
 
             for link in links:
-                self._handle_link(node, link)
+                self._cue_up_link(node, link)
 
         return self.graph
 
-    def _fetch(self, url):
-        return requests.get(url, timeout=10, headers={'User-Agent': 'creepy-crawler'})
-
     def _normalize_url(self, url):
-        base, _ = urldefrag(url)  # remove #fragment
-        return base.rstrip('/')  # remove trailing slash
+        # remove #fragment
+        base, _ = urldefrag(url)  
+        return base
 
-    def _unique_key(self, url):
-        # used only for deduplication: ignore difference between https and http; also ignore #fragment
+    def _stupid_dedup_key(self, url):
         base, _ = urldefrag(url)
         parsed = urlparse(base)
+        # I had to do this because apparently some sites serve both http and https versions
         return f"{parsed.netloc.lower()}{parsed.path.rstrip('/') or '/'}"
 
-    def _parse_html(self, html, base_url):
+    def _parse_html(self, html, base):
+        # what a fun name
         soup = BeautifulSoup(html, 'html.parser')
         title = soup.title.string.strip() if soup.title and soup.title.string else ''
         links = set()
@@ -97,34 +96,36 @@ class Crawler:
             for el in soup.find_all(tag):
                 raw = el.get(attr)
                 if raw:
-                    link = urljoin(base_url, raw)
+                    link = urljoin(base, raw)
                     links.add(self._normalize_url(link))
         return title, links
 
     def _parse_css(self, css_text, base_url):
+        # i'll be honest, I got this from stackoverflow. it's a very impressive regex.
         pattern = re.compile(r'url\(\s*[\'"]?([^\'")]+)[\'"]?\s*\)', re.IGNORECASE)
         return {self._normalize_url(urljoin(base_url, match)) for match in pattern.findall(css_text)}
 
-    def _handle_link(self, source_node, target_url):
-        # this is the regex that allows you to avoid a lot of pain.
+    def _cue_up_link(self, source_node, target_url):
+        #  apply regex filter to ignore parts of the site you don't want to index
+        #  if the link matches, we can discard it
         if self.ignore_regex and self.ignore_regex.search(target_url):
             Logger.print(2, f"Ignored (regex): {target_url}")
             return
 
-        canon_key = self._unique_key(target_url)
+        # ensure every URL has a unique normalised ID, regardless of schema
+        canon_key = self._stupid_dedup_key(target_url)
         parsed = urlparse(target_url)
 
-        # if it's an externallink, put it on the chart but we can't do anything
+        # external link? onto the graph, but don't follow it or we'll be swallowing the whole internet
         if parsed.netloc and parsed.netloc.lower() != self.domain:
             node = self.graph.get_or_create_node(target_url, external=True)
             source_node.add_target(node)
             return
 
         # internal and not yet visited
-        if canon_key not in self.visited_keys and all(
-            self._unique_key(u) != canon_key for u in self.queue
-        ):
+        if canon_key not in self.visited_keys and canon_key not in self.queued_keys:
             self.queue.append(target_url)
+            self.queued_keys.add(canon_key)
 
         node = self.graph.get_or_create_node(target_url)
         source_node.add_target(node)

@@ -177,7 +177,6 @@ class CLI:
 
 
     def _process_graph(self, link_graph, webroot):
-
         if self.generate_sitemap:
             Logger.print(1,"Generating site map!")
             with RWTool.open("sitemap.xml", "w") as f:
@@ -186,14 +185,15 @@ class CLI:
         # store directory tree here to be compared in the report generator
         file_tree = None
         if webroot:
-            Logger.print(1,"Beginning index of webroot...")
-            # initialize the file tree and build it
+            # initialize the file tree and build is
+            Logger.print(1,"Now generating the webroot file tree...")
             file_tree = FileTree(webroot, ignore=self.ignore_regex)
-            file_tree.Build()
+            file_tree.generate()
             Logger.print(1,"Done!")
                 
+        # generate all the requisite reports and write them to their respective files
         for rtype in self.report_types:
-            Logger.print(1,f"Generating {rtype} report...")
+            Logger.print(1,f"Generating {rtype} report(s)...")
             for fmt in self.serial_formats:
                 r = Reporting.generate(link_graph, file_tree, rtype, fmt)
                 with RWTool.open(f"{rtype}.{fmt}", "w") as f:

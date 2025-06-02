@@ -50,7 +50,7 @@ class Logger:
     @staticmethod
     def print(level=2, *args, **kwargs):
         # don't print if below level
-        if level < Logger.__verbosity_level: return
+        if level > Logger.__verbosity_level: return
         print(*args, **kwargs)
         
 
@@ -70,7 +70,7 @@ def valid_path(p_str, dir=True, mode="rw", fatal=False):
         # check the path exists, if we need to read from it
         if not p.exists(): 
             assert not require_read ,'does not exist.'
-            assert valid_path(p.parent), 'could not be created.'
+            assert valid_path(p.parent, mode="w"), 'could not be created.'
         # otherwise, check if we can create the path
         else:
             # verbose = fatal because if this fails, the program will terminate, so we want to print the reason it failed.
