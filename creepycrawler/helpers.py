@@ -12,8 +12,8 @@ class RWTool:
         RWTool.__working_dir = Path(d)
     
     # this allows easier file reading without worrying about the path, and it's also pretty cool!
-    @contextmanager
     @staticmethod
+    @contextmanager
     def open(fname, mode):
         p = Path(fname)
         if not p.is_absolute():
