@@ -5,6 +5,8 @@ import re
 from .helpers import Logger
 import creepycrawler
 import sys
+import threading
+import re
 
 class FileTree:
    # this is essentially a cheat -  instead of walking the file tree myself, I use the posix find command
@@ -17,25 +19,42 @@ class FileTree:
         self._ignore = ignore
         self.files = {}
     
-    def generate(self):
+    def generate(self, interactive=true):
         Logger.print(1,f"Taking inventory of {self._root}")
-        local_cmd = f"cd {self._root} && find . -type f -name '*.*'"
 
         # if the webroot is on a remote system use ssh to run the command, otherwise use bash
-        if self.host:
-            cmd = ["ssh", f"{self.user}@{self.host}" if self.user else self.host, local_cmd]
-        else:
-            cmd = ["bash", "-c", local_cmd]
+        def run_cmd(sudo=False):
+            cmd = f"cd {self._root} && find . -type f -name '*.*'"
+            if self.host:
+                return ["ssh", f"{self.user}@{self.host}" if self.user else self.host, cmd]
+            else:
+                return ["bash", "-c", cmd]
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
+            # non-sudo case: just run the command and return the result  
+            if not sudo return subprocess.run(cmd, capture_output=True, text=True)
+
+            # sudo case
+            cmd = f"sudo -S {cmd}"
+            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.cwPIPE, stderr=subprocess.PIPE, text=True)
+
+    
+        # try running the command. if it works, great!
+        result = run_cmd()
+        # Otherwise...
+        if(result.returncode != 0):
+            # try to handle permission error by running with sudo
+            if "Permission denied" in result.stderr and interactive:
+                logger.print(0,"Permission denied when trying to read {self.__root}. Trying with sudo.")
+                result = run_cmd(sudo=True)
+                if result.returncode != 0
+                    Logger.eprint("Error: command failed even with sudo.")
+                    exit(1)
+            # die if we got a different error or can't prompt interactively
+            else:
+                Logger.eprint(f"Error: {result.stderr.strip()}")
+                exit(1)
 
         lines = result.stdout.strip().splitlines()
-
-        # die if we got an error
-        if result.returncode != 0:
-            Logger.eprint(f"Error: {result.stderr.strip()}")
-            exit(1)
-
         self.files = {"/" + line[2:] if line.startswith("./") else "/" + line for line in lines}
 
     def _parse_path(self,input_str):

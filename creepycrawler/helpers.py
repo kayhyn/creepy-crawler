@@ -52,7 +52,12 @@ class Logger:
         # don't print if below level
         if level > Logger.__verbosity_level: return
         print(*args, **kwargs)
-        
+
+    def silent():
+        return Logger.__verbosity_level == 0
+
+    def quiet():
+        return Logger.__verbosity_level < 2
 
 
     

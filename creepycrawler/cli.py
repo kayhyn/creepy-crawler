@@ -55,6 +55,7 @@ Options:
   -s --silent                   Don't show any output.
   -v --version                  Show version.
   -x --sitemap-xml              Generate a standards-compliant XML sitemap.
+  -n --non-interactive          Never prompt for input; just fail if it's necessary
 
 """
 from docopt import docopt
@@ -85,6 +86,7 @@ class CLI:
         self.archive_dead_links = self.args['--archive-dead-links']
         self.generate_sitemap = self.args['--sitemap-xml']
         self.ignore_regex = self.args['--ignore'] or r'^\..*'
+        self.interactive = not self.args['--non-interactive']
         
         # set up logger for verbosity levels
         Logger.set(silent=self.args['--silent'], quiet=self.args['--quiet'])
@@ -197,7 +199,7 @@ class CLI:
             # initialize the file tree and build is
             Logger.print(1,"Now generating the webroot file tree...")
             file_tree = FileTree(webroot, ignore=self.ignore_regex)
-            file_tree.generate()
+            file_tree.generate(self.interactive)
             Logger.print(1,"Done!")
                 
         # generate all the requisite reports and write them to their respective files
